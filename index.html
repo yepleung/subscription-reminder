@@ -220,6 +220,7 @@
   <div class="header-top">
     <h1>📺 订阅管家</h1>
     <div class="header-actions">
+      <button class="icon-btn" id="syncBtn" title="同步数据">🔗</button>
       <button class="icon-btn" id="notifBtn" title="开启通知">🔔</button>
     </div>
   </div>
@@ -251,6 +252,29 @@
 <main class="list" id="subList"></main>
 
 <button class="fab" id="fabBtn">＋</button>
+
+<!-- Sync Modal -->
+<div class="modal-overlay" id="syncModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">🔗 同步数据</span>
+      <button class="modal-close" id="syncClose">✕</button>
+    </div>
+    <div style="padding:8px 20px 20px">
+      <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:16px">
+        将此设备的订阅数据分享到其他设备。<br>在另一台设备上打开生成的链接即可自动导入。
+      </p>
+      <button class="submit-btn" id="exportBtn">📤 生成同步链接（复制到剪贴板）</button>
+      <div id="exportLink" style="display:none;margin-top:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;word-break:break-all;font-size:12px;color:var(--text2)"></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div class="form-label" style="margin-bottom:8px">或贴上其他设备的同步链接：</div>
+        <input type="url" id="importInput" placeholder="贴上链接…" style="margin-bottom:10px">
+        <button class="submit-btn" id="importBtn" style="background:var(--card2);color:var(--text)">📥 从链接导入数据</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
@@ -708,6 +732,56 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
 }
 
+// ── Sync ───────────────────────────────────────────────────
+function exportData() {
+  if (subscriptions.length === 0) { showToast('还没有订阅数据'); return; }
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(subscriptions))));
+  const url = `${location.origin}${location.pathname}#sync=${encoded}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('链接已复制 ✅');
+  }).catch(() => {
+    showToast('请手动复制下方链接');
+  });
+  const box = document.getElementById('exportLink');
+  box.style.display = 'block';
+  box.textContent = url;
+}
+
+function importFromUrl(url) {
+  try {
+    const hash = new URL(url).hash;
+    const match = hash.match(/[#&]?sync=([^&]+)/);
+    if (!match) { showToast('链接格式不正确'); return false; }
+    const data = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
+    if (!Array.isArray(data)) throw new Error();
+    if (!confirm(`检测到 ${data.length} 笔订阅数据，导入后将覆盖当前数据，确定吗？`)) return false;
+    subscriptions = data;
+    save();
+    render();
+    showToast(`已导入 ${data.length} 笔订阅 🎉`);
+    return true;
+  } catch {
+    showToast('链接解析失败，请重试');
+    return false;
+  }
+}
+
+function checkUrlSync() {
+  const match = location.hash.match(/[#&]?sync=([^&]+)/);
+  if (!match) return;
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
+    if (!Array.isArray(data) || data.length === 0) return;
+    if (confirm(`检测到同步数据（${data.length} 笔订阅），是否导入？`)) {
+      subscriptions = data;
+      save();
+      render();
+      showToast(`已导入 ${data.length} 笔订阅 🎉`);
+    }
+    history.replaceState(null, '', location.pathname);
+  } catch {}
+}
+
 // ── Init ───────────────────────────────────────────────────
 function init() {
   renderPresets();
@@ -765,6 +839,28 @@ function init() {
     document.getElementById('notifBanner').classList.add('hidden');
   });
   document.getElementById('notifBtn').addEventListener('click', requestNotif);
+
+  // Sync modal
+  document.getElementById('syncBtn').addEventListener('click', () => {
+    document.getElementById('exportLink').style.display = 'none';
+    document.getElementById('importInput').value = '';
+    document.getElementById('syncModal').classList.add('open');
+  });
+  document.getElementById('syncClose').addEventListener('click', () =>
+    document.getElementById('syncModal').classList.remove('open'));
+  document.getElementById('syncModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('syncModal'))
+      document.getElementById('syncModal').classList.remove('open');
+  });
+  document.getElementById('exportBtn').addEventListener('click', exportData);
+  document.getElementById('importBtn').addEventListener('click', () => {
+    const url = document.getElementById('importInput').value.trim();
+    if (!url) { showToast('请先贴上链接'); return; }
+    if (importFromUrl(url)) document.getElementById('syncModal').classList.remove('open');
+  });
+
+  // Check URL for sync data on load
+  checkUrlSync();
 }
 
 document.addEventListener('DOMContentLoaded', init);
