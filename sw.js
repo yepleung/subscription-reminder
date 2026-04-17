@@ -1,4 +1,4 @@
-const CACHE = 'sub-reminder-v4';
+const CACHE = 'sub-reminder-v5';
 const ASSETS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', e => {
