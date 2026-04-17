@@ -134,10 +134,11 @@
     /* ── Modal ── */
     .modal-overlay {
       position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.7);
-      display: flex; align-items: flex-end; justify-content: center;
-      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+      display: none; align-items: flex-end; justify-content: center;
+      opacity: 0; transition: opacity 0.25s;
     }
-    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-overlay.visible { display: flex; }
+    .modal-overlay.open { opacity: 1; }
     .modal {
       width: 100%; max-width: 480px; background: var(--bg2);
       border-radius: 24px 24px 0 0; padding: 0 0 calc(var(--safe-bottom) + 20px);
@@ -575,7 +576,7 @@ function showDetail(id) {
     <button class="detail-actions btn-edit" onclick="editSub('${id}')">✏️ 编辑</button>
     <button class="detail-actions btn-del" onclick="confirmDelete('${id}')">🗑️ 删除</button>
   `;
-  document.getElementById('detailModal').classList.add('open');
+  openModal('detailModal');
 }
 
 // ── Edit/Add ───────────────────────────────────────────────
@@ -591,14 +592,14 @@ function openAdd() {
   document.getElementById('deleteBtn').style.display = 'none';
   selectColor(COLORS[0]);
   clearPresets();
-  document.getElementById('editModal').classList.add('open');
+  openModal('editModal');
 }
 
 function editSub(id) {
   const s = subscriptions.find(x => x.id === id);
   if (!s) return;
   editingId = id;
-  document.getElementById('detailModal').classList.remove('open');
+  closeModal('detailModal');
   document.getElementById('modalTitle').textContent = '编辑订阅';
   document.getElementById('fName').value = s.name;
   document.getElementById('fIcon').value = s.icon || '';
@@ -609,7 +610,7 @@ function editSub(id) {
   document.getElementById('deleteBtn').style.display = 'block';
   selectColor(s.color || COLORS[0]);
   clearPresets();
-  document.getElementById('editModal').classList.add('open');
+  openModal('editModal');
 }
 
 function saveSub() {
@@ -635,7 +636,7 @@ function saveSub() {
   }
 
   save();
-  document.getElementById('editModal').classList.remove('open');
+  closeModal('editModal');
   render();
 }
 
@@ -646,8 +647,8 @@ async function confirmDelete(id) {
   if (!ok) return;
   subscriptions = subscriptions.filter(x => x.id !== id);
   save();
-  document.getElementById('detailModal').classList.remove('open');
-  document.getElementById('editModal').classList.remove('open');
+  closeModal('detailModal');
+  closeModal('editModal');
   showToast('已删除订阅');
   render();
 }
@@ -750,17 +751,29 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
 }
 
+// ── Modal Helpers ──────────────────────────────────────────
+function openModal(id) {
+  const el = document.getElementById(id);
+  el.classList.add('visible');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('open')));
+}
+function closeModal(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('open');
+  setTimeout(() => el.classList.remove('visible'), 260);
+}
+
 // ── Custom Confirm ─────────────────────────────────────────
 function showConfirm(icon, title, msg) {
   return new Promise(resolve => {
     document.getElementById('confirmIcon').textContent = icon;
     document.getElementById('confirmTitle').textContent = title;
     document.getElementById('confirmMsg').textContent = msg;
-    document.getElementById('confirmModal').classList.add('open');
+    openModal('confirmModal');
     const ok = document.getElementById('confirmOk');
     const cancel = document.getElementById('confirmCancel');
     const cleanup = result => {
-      document.getElementById('confirmModal').classList.remove('open');
+      closeModal('confirmModal');
       ok.replaceWith(ok.cloneNode(true));
       cancel.replaceWith(cancel.cloneNode(true));
       resolve(result);
@@ -853,18 +866,18 @@ function init() {
 
   // Modal close
   document.getElementById('modalClose').addEventListener('click', () =>
-    document.getElementById('editModal').classList.remove('open'));
+    closeModal('editModal'));
   document.getElementById('detailClose').addEventListener('click', () =>
-    document.getElementById('detailModal').classList.remove('open'));
+    closeModal('detailModal'));
 
   // Close on overlay click
   document.getElementById('editModal').addEventListener('click', e => {
     if (e.target === document.getElementById('editModal'))
-      document.getElementById('editModal').classList.remove('open');
+      closeModal('editModal');
   });
   document.getElementById('detailModal').addEventListener('click', e => {
     if (e.target === document.getElementById('detailModal'))
-      document.getElementById('detailModal').classList.remove('open');
+      closeModal('detailModal');
   });
 
   // Submit
@@ -883,20 +896,20 @@ function init() {
   document.getElementById('syncBtn').addEventListener('click', () => {
     document.getElementById('exportLink').style.display = 'none';
     document.getElementById('importInput').value = '';
-    document.getElementById('syncModal').classList.add('open');
+    openModal('syncModal');
   });
   document.getElementById('syncClose').addEventListener('click', () =>
-    document.getElementById('syncModal').classList.remove('open'));
+    closeModal('syncModal'));
   document.getElementById('syncModal').addEventListener('click', e => {
     if (e.target === document.getElementById('syncModal'))
-      document.getElementById('syncModal').classList.remove('open');
+      closeModal('syncModal');
   });
   document.getElementById('exportBtn').addEventListener('click', exportData);
   document.getElementById('importBtn').addEventListener('click', async () => {
     const url = document.getElementById('importInput').value.trim();
     if (!url) { showToast('请先贴上链接'); return; }
     const ok = await importFromUrl(url);
-    if (ok) document.getElementById('syncModal').classList.remove('open');
+    if (ok) closeModal('syncModal');
   });
 
   // Check URL for sync data on load
