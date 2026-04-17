@@ -276,6 +276,21 @@
   </div>
 </div>
 
+<!-- Confirm Dialog -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="border-radius:24px;margin:20px">
+    <div style="padding:24px 20px 16px;text-align:center">
+      <div style="font-size:40px;margin-bottom:12px" id="confirmIcon">📥</div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px" id="confirmTitle"></div>
+      <div style="font-size:14px;color:var(--text2);line-height:1.5" id="confirmMsg"></div>
+    </div>
+    <div style="display:flex;gap:10px;padding:0 20px 24px">
+      <button id="confirmCancel" style="flex:1;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:15px;font-weight:600;cursor:pointer">取消</button>
+      <button id="confirmOk" style="flex:1;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5cbf,#5b8af0);color:white;font-size:15px;font-weight:600;cursor:pointer">确定</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -624,8 +639,11 @@ function saveSub() {
   render();
 }
 
-function confirmDelete(id) {
-  if (!confirm('确定要删除这个订阅吗？')) return;
+async function confirmDelete(id) {
+  const s = subscriptions.find(x => x.id === id);
+  if (!s) return;
+  const ok = await showConfirm('🗑️', '删除订阅', `确定要删除「${s.name}」吗？`);
+  if (!ok) return;
   subscriptions = subscriptions.filter(x => x.id !== id);
   save();
   document.getElementById('detailModal').classList.remove('open');
@@ -732,53 +750,74 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
 }
 
+// ── Custom Confirm ─────────────────────────────────────────
+function showConfirm(icon, title, msg) {
+  return new Promise(resolve => {
+    document.getElementById('confirmIcon').textContent = icon;
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMsg').textContent = msg;
+    document.getElementById('confirmModal').classList.add('open');
+    const ok = document.getElementById('confirmOk');
+    const cancel = document.getElementById('confirmCancel');
+    const cleanup = result => {
+      document.getElementById('confirmModal').classList.remove('open');
+      ok.replaceWith(ok.cloneNode(true));
+      cancel.replaceWith(cancel.cloneNode(true));
+      resolve(result);
+    };
+    document.getElementById('confirmOk').addEventListener('click', () => cleanup(true));
+    document.getElementById('confirmCancel').addEventListener('click', () => cleanup(false));
+  });
+}
+
 // ── Sync ───────────────────────────────────────────────────
 function exportData() {
   if (subscriptions.length === 0) { showToast('还没有订阅数据'); return; }
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(subscriptions))));
   const url = `${location.origin}${location.pathname}#sync=${encoded}`;
-  navigator.clipboard.writeText(url).then(() => {
-    showToast('链接已复制 ✅');
-  }).catch(() => {
-    showToast('请手动复制下方链接');
-  });
   const box = document.getElementById('exportLink');
   box.style.display = 'block';
   box.textContent = url;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('链接已复制，请在 iPhone Safari 中打开 ✅');
+  }).catch(() => {
+    showToast('请长按下方链接手动复制');
+  });
 }
 
-function importFromUrl(url) {
+function parseSyncData(url) {
   try {
-    const hash = new URL(url).hash;
+    const hash = decodeURIComponent(new URL(url).hash);
     const match = hash.match(/[#&]?sync=([^&]+)/);
-    if (!match) { showToast('链接格式不正确'); return false; }
+    if (!match) return null;
     const data = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
-    if (!Array.isArray(data)) throw new Error();
-    if (!confirm(`检测到 ${data.length} 笔订阅数据，导入后将覆盖当前数据，确定吗？`)) return false;
-    subscriptions = data;
-    save();
-    render();
-    showToast(`已导入 ${data.length} 笔订阅 🎉`);
-    return true;
-  } catch {
-    showToast('链接解析失败，请重试');
-    return false;
-  }
+    return Array.isArray(data) ? data : null;
+  } catch { return null; }
 }
 
-function checkUrlSync() {
+async function importFromUrl(url) {
+  const data = parseSyncData(url.trim());
+  if (!data) { showToast('链接格式不正确'); return false; }
+  const ok = await showConfirm('📥', '导入订阅数据', `检测到 ${data.length} 笔订阅，导入后将覆盖当前数据，确定吗？`);
+  if (!ok) return false;
+  subscriptions = data;
+  save(); render();
+  showToast(`已导入 ${data.length} 笔订阅 🎉`);
+  return true;
+}
+
+async function checkUrlSync() {
   const match = location.hash.match(/[#&]?sync=([^&]+)/);
   if (!match) return;
+  history.replaceState(null, '', location.pathname);
   try {
     const data = JSON.parse(decodeURIComponent(escape(atob(match[1]))));
     if (!Array.isArray(data) || data.length === 0) return;
-    if (confirm(`检测到同步数据（${data.length} 笔订阅），是否导入？`)) {
-      subscriptions = data;
-      save();
-      render();
-      showToast(`已导入 ${data.length} 笔订阅 🎉`);
-    }
-    history.replaceState(null, '', location.pathname);
+    const ok = await showConfirm('📥', '检测到同步数据', `共 ${data.length} 笔订阅，是否导入到此设备？`);
+    if (!ok) return;
+    subscriptions = data;
+    save(); render();
+    showToast(`已导入 ${data.length} 笔订阅 🎉`);
   } catch {}
 }
 
@@ -853,10 +892,11 @@ function init() {
       document.getElementById('syncModal').classList.remove('open');
   });
   document.getElementById('exportBtn').addEventListener('click', exportData);
-  document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importBtn').addEventListener('click', async () => {
     const url = document.getElementById('importInput').value.trim();
     if (!url) { showToast('请先贴上链接'); return; }
-    if (importFromUrl(url)) document.getElementById('syncModal').classList.remove('open');
+    const ok = await importFromUrl(url);
+    if (ok) document.getElementById('syncModal').classList.remove('open');
   });
 
   // Check URL for sync data on load
