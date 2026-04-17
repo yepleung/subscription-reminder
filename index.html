@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="订阅管家">
+  <link rel="manifest" href="manifest.json">
+  <title>订阅管家</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --bg: #0a0a14;
+      --bg2: #111122;
+      --card: #16162a;
+      --card2: #1e1e38;
+      --border: #2a2a4a;
+      --accent: #7c5cbf;
+      --accent2: #5b8af0;
+      --text: #e8e8f4;
+      --text2: #8888aa;
+      --text3: #5555778;
+      --danger: #ff5252;
+      --warning: #ffb300;
+      --success: #4caf83;
+      --radius: 18px;
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; overflow-x: hidden; }
+
+    /* ── Header ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,20,0.92);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      padding: calc(var(--safe-top) + 16px) 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-top { display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--card2); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .total-bar { margin-top: 14px; }
+    .total-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+    .total-amount { font-size: 28px; font-weight: 700; color: var(--text); }
+    .total-amount span { font-size: 16px; font-weight: 500; color: var(--text2); margin-left: 4px; }
+
+    /* ── Notification Banner ── */
+    .notif-banner {
+      margin: 12px 16px; padding: 12px 16px; background: linear-gradient(135deg, rgba(124,92,191,0.2), rgba(91,138,240,0.2));
+      border: 1px solid rgba(124,92,191,0.4); border-radius: 12px;
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+    }
+    .notif-banner.hidden { display: none; }
+    .notif-banner .icon { font-size: 22px; flex-shrink: 0; }
+    .notif-banner .text { flex: 1; font-size: 13px; color: var(--text2); line-height: 1.4; }
+    .notif-banner .text b { color: var(--text); display: block; margin-bottom: 2px; font-size: 14px; }
+    .notif-banner .close-btn { color: var(--text2); font-size: 18px; flex-shrink: 0; background: none; border: none; cursor: pointer; padding: 4px; }
+
+    /* ── Alert Cards ── */
+    .alert-section { padding: 8px 16px; }
+    .alert-card {
+      padding: 12px 16px; border-radius: 12px; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 12px;
+      border: 1px solid;
+    }
+    .alert-card.danger { background: rgba(255,82,82,0.1); border-color: rgba(255,82,82,0.3); }
+    .alert-card.warning { background: rgba(255,179,0,0.1); border-color: rgba(255,179,0,0.3); }
+    .alert-card .alert-icon { font-size: 20px; }
+    .alert-card .alert-text { flex: 1; }
+    .alert-card .alert-name { font-size: 14px; font-weight: 600; }
+    .alert-card .alert-desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 6px; padding: 12px 16px 4px; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 13px; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+    /* ── Subscription List ── */
+    .list { padding: 8px 16px 120px; }
+    .month-section { margin-bottom: 8px; }
+    .month-header { font-size: 12px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin: 12px 0 6px; }
+
+    .sub-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      margin-bottom: 10px; overflow: hidden; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .sub-card:active { transform: scale(0.98); }
+    .sub-card-inner { display: flex; align-items: center; padding: 14px 16px; gap: 14px; }
+    .sub-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+    .sub-info { flex: 1; min-width: 0; }
+    .sub-name { font-size: 16px; font-weight: 600; color: var(--text); }
+    .sub-dates { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.5; }
+    .sub-right { text-align: right; flex-shrink: 0; }
+    .sub-fee { font-size: 18px; font-weight: 700; color: var(--text); }
+    .sub-period { font-size: 11px; color: var(--text2); }
+    .sub-badge {
+      display: inline-block; padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; margin-top: 5px;
+    }
+    .badge-ok { background: rgba(76,175,131,0.2); color: var(--success); }
+    .badge-soon { background: rgba(255,179,0,0.2); color: var(--warning); }
+    .badge-urgent { background: rgba(255,82,82,0.2); color: var(--danger); }
+    .badge-today { background: rgba(255,82,82,0.3); color: var(--danger); animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+    /* ── Progress Bar ── */
+    .sub-progress { height: 2px; background: var(--border); margin: 0 16px 12px; border-radius: 2px; overflow: hidden; }
+    .sub-progress-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+    /* ── Empty State ── */
+    .empty { text-align: center; padding: 80px 32px; }
+    .empty-icon { font-size: 64px; margin-bottom: 16px; }
+    .empty h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+    .empty p { color: var(--text2); font-size: 14px; line-height: 1.6; }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed; right: 20px; bottom: calc(var(--safe-bottom) + 24px); z-index: 200;
+      width: 58px; height: 58px; border-radius: 50%; border: none;
+      background: linear-gradient(135deg, #7c5cbf, #5b8af0);
+      color: white; font-size: 28px; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(124,92,191,0.5);
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fab:active { transform: scale(0.92); box-shadow: 0 4px 16px rgba(124,92,191,0.4); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.7);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      width: 100%; max-width: 480px; background: var(--bg2);
+      border-radius: 24px 24px 0 0; padding: 0 0 calc(var(--safe-bottom) + 20px);
+      transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+      max-height: 92vh; overflow-y: auto;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 12px auto 0; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 8px; }
+    .modal-title { font-size: 18px; font-weight: 700; }
+    .modal-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--card2); color: var(--text2); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    /* ── Form ── */
+    .form { padding: 8px 20px; }
+    .preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+    .preset-btn {
+      aspect-ratio: 1; border-radius: 14px; border: 2px solid var(--border);
+      background: var(--card); cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 3px; transition: all 0.15s;
+    }
+    .preset-btn:active { transform: scale(0.95); }
+    .preset-btn.selected { border-color: var(--accent); background: rgba(124,92,191,0.15); }
+    .preset-btn .p-icon { font-size: 22px; }
+    .preset-btn .p-name { font-size: 9px; color: var(--text2); text-align: center; line-height: 1.2; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 13px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 500; }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    input, select, textarea {
+      width: 100%; padding: 12px 14px; background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; color: var(--text); font-size: 16px; outline: none;
+      -webkit-appearance: none; appearance: none; transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%238888aa'%3E%3Cpath d='M6 8L0 0h12z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+    .color-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .color-dot {
+      width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .color-dot.selected { border-color: white; transform: scale(1.15); }
+    .submit-btn {
+      width: 100%; padding: 16px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #7c5cbf, #5b8af0);
+      color: white; font-size: 16px; font-weight: 600; cursor: pointer;
+      margin-top: 8px; transition: opacity 0.2s;
+    }
+    .submit-btn:active { opacity: 0.85; }
+    .delete-btn {
+      width: 100%; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,82,82,0.3);
+      background: rgba(255,82,82,0.1); color: var(--danger); font-size: 15px; font-weight: 600;
+      cursor: pointer; margin-top: 10px;
+    }
+    .section-label { font-size: 13px; color: var(--text2); font-weight: 600; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; top: calc(var(--safe-top) + 60px); left: 50%; transform: translateX(-50%) translateY(-20px);
+      z-index: 500; background: var(--card2); color: var(--text); padding: 12px 20px;
+      border-radius: 24px; font-size: 14px; pointer-events: none; opacity: 0;
+      transition: all 0.3s; white-space: nowrap; border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Detail Sheet ── */
+    .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-key { font-size: 14px; color: var(--text2); }
+    .detail-val { font-size: 14px; font-weight: 600; color: var(--text); }
+    .detail-actions { display: flex; gap: 10px; padding: 0 20px; margin-top: 8px; }
+    .detail-actions button { flex: 1; padding: 14px; border-radius: 14px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-edit { background: var(--card2); color: var(--text); }
+    .btn-del { background: rgba(255,82,82,0.15); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-top">
+    <h1>📺 订阅管家</h1>
+    <div class="header-actions">
+      <button class="icon-btn" id="notifBtn" title="开启通知">🔔</button>
+    </div>
+  </div>
+  <div class="total-bar">
+    <div class="total-label">本月总订阅费</div>
+    <div class="total-amount" id="totalDisplay">—</div>
+  </div>
+</header>
+
+<div id="notifBanner" class="notif-banner hidden">
+  <div class="icon">🔔</div>
+  <div class="text">
+    <b>开启通知提醒</b>
+    点此允许通知，到期前一天自动提醒你
+  </div>
+  <button class="close-btn" id="bannerClose">✕</button>
+</div>
+
+<div id="alertSection" class="alert-section"></div>
+
+<div class="tabs" id="tabBar">
+  <button class="tab active" data-filter="all">全部</button>
+  <button class="tab" data-filter="soon">即将到期</button>
+  <button class="tab" data-filter="streaming">流媒体</button>
+  <button class="tab" data-filter="music">音乐</button>
+  <button class="tab" data-filter="other">其他</button>
+</div>
+
+<main class="list" id="subList"></main>
+
+<button class="fab" id="fabBtn">＋</button>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">添加订阅</span>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="form" id="editForm">
+      <span class="section-label">快速选择</span>
+      <div class="preset-grid" id="presetGrid"></div>
+
+      <div class="form-group">
+        <label class="form-label">服务名称</label>
+        <input type="text" id="fName" placeholder="例：Netflix" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">图标</label>
+          <input type="text" id="fIcon" placeholder="🎬" maxlength="2" style="text-align:center;font-size:24px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">分类</label>
+          <select id="fCategory">
+            <option value="streaming">流媒体</option>
+            <option value="music">音乐</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">月费</label>
+          <input type="number" id="fFee" placeholder="0.00" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">货币</label>
+          <select id="fCurrency">
+            <option value="CNY">¥ 人民币</option>
+            <option value="TWD">NT$ 新台币</option>
+            <option value="HKD">HK$ 港币</option>
+            <option value="USD">$ 美元</option>
+            <option value="EUR">€ 欧元</option>
+            <option value="JPY">¥ 日元</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">订阅开始日期</label>
+        <input type="date" id="fStartDate">
+      </div>
+      <div class="form-group">
+        <label class="form-label">颜色</label>
+        <div class="color-row" id="colorRow"></div>
+      </div>
+      <button class="submit-btn" id="submitBtn">保存订阅</button>
+      <button class="delete-btn" id="deleteBtn" style="display:none">删除此订阅</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="detailTitle">订阅详情</span>
+      <button class="modal-close" id="detailClose">✕</button>
+    </div>
+    <div id="detailBody" style="padding:0 20px 8px"></div>
+    <div class="detail-actions" id="detailActions"></div>
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────
+const STORAGE_KEY = 'subs_v2';
+
+const COLORS = ['#7c5cbf','#5b8af0','#e84393','#ff5252','#ff9800','#4caf83','#00bcd4','#607d8b'];
+
+const PRESETS = [
+  { name:'Netflix',      icon:'🎬', color:'#e50914', category:'streaming' },
+  { name:'Disney+',      icon:'✨', color:'#113ccf', category:'streaming' },
+  { name:'Apple TV+',    icon:'🍎', color:'#555555', category:'streaming' },
+  { name:'YouTube',      icon:'▶️', color:'#ff0000', category:'streaming' },
+  { name:'HBO Max',      icon:'🎭', color:'#5a2d82', category:'streaming' },
+  { name:'Spotify',      icon:'🎵', color:'#1db954', category:'music' },
+  { name:'Apple Music',  icon:'🎶', color:'#fc3c44', category:'music' },
+  { name:'爱奇艺',        icon:'🎯', color:'#00be06', category:'streaming' },
+  { name:'腾讯视频',      icon:'🐧', color:'#ff6600', category:'streaming' },
+  { name:'优酷',          icon:'🎪', color:'#1b82e0', category:'streaming' },
+  { name:'B站大会员',     icon:'📻', color:'#fb7299', category:'streaming' },
+  { name:'其他',          icon:'📦', color:'#607d8b', category:'other' },
+];
+
+const CURRENCY_SYMBOLS = { CNY:'¥', TWD:'NT$', HKD:'HK$', USD:'$', EUR:'€', JPY:'¥' };
+
+// ── State ──────────────────────────────────────────────────
+let subscriptions = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let currentFilter = 'all';
+let editingId = null;
+let selectedColor = COLORS[0];
+
+// ── Date Utils ─────────────────────────────────────────────
+function getNextRenewal(startDate) {
+  const start = new Date(startDate);
+  const billingDay = start.getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+  let next = new Date(today.getFullYear(), today.getMonth(), billingDay);
+  if (next < today) next = new Date(today.getFullYear(), today.getMonth() + 1, billingDay);
+  return next;
+}
+
+function getDaysUntil(date) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((date - today) / 86400000);
+}
+
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function formatDateShort(date) {
+  return `${date.getMonth()+1}月${date.getDate()}日`;
+}
+
+function getSubscribedMonths(startDate) {
+  const start = new Date(startDate);
+  const today = new Date();
+  const months = (today.getFullYear() - start.getFullYear()) * 12 + (today.getMonth() - start.getMonth());
+  return Math.max(0, months);
+}
+
+// ── Currency ───────────────────────────────────────────────
+function fmtMoney(amount, currency) {
+  const sym = CURRENCY_SYMBOLS[currency] || currency;
+  return `${sym}${parseFloat(amount).toFixed(2)}`;
+}
+
+function calcTotals() {
+  const map = {};
+  subscriptions.forEach(s => {
+    map[s.currency] = (map[s.currency] || 0) + parseFloat(s.fee);
+  });
+  return map;
+}
+
+// ── Badge ──────────────────────────────────────────────────
+function getBadge(days) {
+  if (days === 0) return { cls:'badge-today', text:'今天到期' };
+  if (days === 1) return { cls:'badge-urgent', text:'明天到期' };
+  if (days <= 7)  return { cls:'badge-soon',   text:`${days}天后` };
+  return { cls:'badge-ok', text:`${days}天后` };
+}
+
+function getProgressColor(days) {
+  if (days <= 1) return '#ff5252';
+  if (days <= 7) return '#ffb300';
+  return '#4caf83';
+}
+
+// ── Render ─────────────────────────────────────────────────
+function render() {
+  renderTotal();
+  renderAlerts();
+  renderList();
+}
+
+function renderTotal() {
+  const totals = calcTotals();
+  const keys = Object.keys(totals);
+  if (keys.length === 0) {
+    document.getElementById('totalDisplay').innerHTML = '—';
+    return;
+  }
+  const parts = keys.map(k => `${CURRENCY_SYMBOLS[k] || k}${totals[k].toFixed(2)}`);
+  document.getElementById('totalDisplay').innerHTML =
+    parts.join(' + ') + `<span>/ 月</span>`;
+}
+
+function renderAlerts() {
+  const section = document.getElementById('alertSection');
+  const alerts = subscriptions
+    .map(s => ({ s, days: getDaysUntil(getNextRenewal(s.startDate)) }))
+    .filter(({days}) => days <= 1)
+    .sort((a,b) => a.days - b.days);
+
+  if (alerts.length === 0) { section.innerHTML = ''; return; }
+  section.innerHTML = alerts.map(({s, days}) => `
+    <div class="alert-card ${days === 0 ? 'danger' : 'warning'}">
+      <div class="alert-icon">${days === 0 ? '🚨' : '⚠️'}</div>
+      <div class="alert-text">
+        <div class="alert-name">${s.name} ${days === 0 ? '今天' : '明天'}续费</div>
+        <div class="alert-desc">${fmtMoney(s.fee, s.currency)} 将在 ${formatDateShort(getNextRenewal(s.startDate))} 从账户扣除</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterSubs() {
+  return subscriptions.filter(s => {
+    if (currentFilter === 'all') return true;
+    if (currentFilter === 'soon') return getDaysUntil(getNextRenewal(s.startDate)) <= 7;
+    return s.category === currentFilter;
+  });
+}
+
+function renderList() {
+  const list = document.getElementById('subList');
+  const filtered = filterSubs().sort((a,b) =>
+    getDaysUntil(getNextRenewal(a.startDate)) - getDaysUntil(getNextRenewal(b.startDate))
+  );
+
+  if (filtered.length === 0) {
+    list.innerHTML = subscriptions.length === 0 ? `
+      <div class="empty">
+        <div class="empty-icon">📺</div>
+        <h2>还没有订阅</h2>
+        <p>点击右下角 ＋ 按钮<br>添加你的第一个流媒体订阅</p>
+      </div>` : `
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <h2>没有符合条件的订阅</h2>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(s => {
+    const renewal = getNextRenewal(s.startDate);
+    const days = getDaysUntil(renewal);
+    const badge = getBadge(days);
+    const progress = Math.max(2, Math.min(100, ((30 - days) / 30) * 100));
+    const months = getSubscribedMonths(s.startDate);
+
+    return `
+    <div class="sub-card" onclick="showDetail('${s.id}')">
+      <div class="sub-card-inner">
+        <div class="sub-icon" style="background:${s.color}22;border:1px solid ${s.color}44">${s.icon || s.name.charAt(0)}</div>
+        <div class="sub-info">
+          <div class="sub-name">${s.name}</div>
+          <div class="sub-dates">
+            订阅于 ${formatDate(s.startDate)}${months > 0 ? `（${months}个月）` : ''}
+            <br>下次续费：${formatDateShort(renewal)}
+          </div>
+        </div>
+        <div class="sub-right">
+          <div class="sub-fee">${fmtMoney(s.fee, s.currency)}</div>
+          <div class="sub-period">/月</div>
+          <div class="sub-badge ${badge.cls}">${badge.text}</div>
+        </div>
+      </div>
+      <div class="sub-progress">
+        <div class="sub-progress-fill" style="width:${progress}%;background:${getProgressColor(days)}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Detail Sheet ───────────────────────────────────────────
+function showDetail(id) {
+  const s = subscriptions.find(x => x.id === id);
+  if (!s) return;
+  const renewal = getNextRenewal(s.startDate);
+  const days = getDaysUntil(renewal);
+  const months = getSubscribedMonths(s.startDate);
+  const badge = getBadge(days);
+  const totalPaid = months * parseFloat(s.fee);
+
+  document.getElementById('detailTitle').textContent = `${s.icon} ${s.name}`;
+  document.getElementById('detailBody').innerHTML = `
+    <div class="detail-row"><span class="detail-key">月费</span><span class="detail-val">${fmtMoney(s.fee, s.currency)}</span></div>
+    <div class="detail-row"><span class="detail-key">订阅开始</span><span class="detail-val">${formatDate(s.startDate)}</span></div>
+    <div class="detail-row"><span class="detail-key">已订阅</span><span class="detail-val">${months} 个月</span></div>
+    <div class="detail-row"><span class="detail-key">下次续费</span><span class="detail-val" style="color:${getProgressColor(days)}">${formatDate(renewal.toISOString().split('T')[0])} <span class="sub-badge ${badge.cls}">${badge.text}</span></span></div>
+    <div class="detail-row"><span class="detail-key">累计消费</span><span class="detail-val">${fmtMoney(totalPaid, s.currency)}</span></div>
+  `;
+  document.getElementById('detailActions').innerHTML = `
+    <button class="detail-actions btn-edit" onclick="editSub('${id}')">✏️ 编辑</button>
+    <button class="detail-actions btn-del" onclick="confirmDelete('${id}')">🗑️ 删除</button>
+  `;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+// ── Edit/Add ───────────────────────────────────────────────
+function openAdd() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '添加订阅';
+  document.getElementById('fName').value = '';
+  document.getElementById('fIcon').value = '';
+  document.getElementById('fFee').value = '';
+  document.getElementById('fCurrency').value = 'CNY';
+  document.getElementById('fCategory').value = 'streaming';
+  document.getElementById('fStartDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('deleteBtn').style.display = 'none';
+  selectColor(COLORS[0]);
+  clearPresets();
+  document.getElementById('editModal').classList.add('open');
+}
+
+function editSub(id) {
+  const s = subscriptions.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('detailModal').classList.remove('open');
+  document.getElementById('modalTitle').textContent = '编辑订阅';
+  document.getElementById('fName').value = s.name;
+  document.getElementById('fIcon').value = s.icon || '';
+  document.getElementById('fFee').value = s.fee;
+  document.getElementById('fCurrency').value = s.currency;
+  document.getElementById('fCategory').value = s.category || 'streaming';
+  document.getElementById('fStartDate').value = s.startDate;
+  document.getElementById('deleteBtn').style.display = 'block';
+  selectColor(s.color || COLORS[0]);
+  clearPresets();
+  document.getElementById('editModal').classList.add('open');
+}
+
+function saveSub() {
+  const name = document.getElementById('fName').value.trim();
+  const fee = parseFloat(document.getElementById('fFee').value);
+  const currency = document.getElementById('fCurrency').value;
+  const startDate = document.getElementById('fStartDate').value;
+  const icon = document.getElementById('fIcon').value.trim() || name.charAt(0);
+  const category = document.getElementById('fCategory').value;
+
+  if (!name || isNaN(fee) || !startDate) {
+    showToast('请填写完整信息');
+    return;
+  }
+
+  if (editingId) {
+    const idx = subscriptions.findIndex(x => x.id === editingId);
+    if (idx > -1) subscriptions[idx] = { ...subscriptions[idx], name, fee, currency, startDate, icon, color: selectedColor, category };
+    showToast('已更新订阅');
+  } else {
+    subscriptions.push({ id: Date.now().toString(), name, fee, currency, startDate, icon, color: selectedColor, category });
+    showToast('已添加订阅 🎉');
+  }
+
+  save();
+  document.getElementById('editModal').classList.remove('open');
+  render();
+}
+
+function confirmDelete(id) {
+  if (!confirm('确定要删除这个订阅吗？')) return;
+  subscriptions = subscriptions.filter(x => x.id !== id);
+  save();
+  document.getElementById('detailModal').classList.remove('open');
+  document.getElementById('editModal').classList.remove('open');
+  showToast('已删除订阅');
+  render();
+}
+
+// ── Presets ────────────────────────────────────────────────
+function renderPresets() {
+  document.getElementById('presetGrid').innerHTML = PRESETS.map((p, i) => `
+    <button class="preset-btn" data-idx="${i}" onclick="applyPreset(${i})">
+      <span class="p-icon">${p.icon}</span>
+      <span class="p-name">${p.name}</span>
+    </button>
+  `).join('');
+}
+
+function applyPreset(i) {
+  const p = PRESETS[i];
+  document.getElementById('fName').value = p.name;
+  document.getElementById('fIcon').value = p.icon;
+  document.getElementById('fCategory').value = p.category;
+  selectColor(p.color);
+  clearPresets();
+  document.querySelectorAll('.preset-btn').forEach((b, idx) => {
+    if (idx === i) b.classList.add('selected');
+  });
+}
+
+function clearPresets() {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+}
+
+// ── Colors ─────────────────────────────────────────────────
+function renderColors() {
+  document.getElementById('colorRow').innerHTML = COLORS.map(c => `
+    <div class="color-dot${c === selectedColor ? ' selected' : ''}" style="background:${c}" onclick="selectColor('${c}')"></div>
+  `).join('');
+}
+
+function selectColor(c) {
+  selectedColor = c;
+  document.querySelectorAll('.color-dot').forEach(d => {
+    d.classList.toggle('selected', d.style.background === c || d.style.backgroundColor === c);
+  });
+  renderColors();
+}
+
+// ── Notifications ──────────────────────────────────────────
+function checkNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    document.getElementById('notifBanner').classList.remove('hidden');
+  }
+}
+
+async function requestNotif() {
+  if (!('Notification' in window)) { showToast('您的浏览器不支持通知'); return; }
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    document.getElementById('notifBanner').classList.add('hidden');
+    showToast('通知已开启 ✅');
+    sendDueNotifications();
+  } else {
+    showToast('通知未被允许');
+  }
+}
+
+function sendDueNotifications() {
+  if (Notification.permission !== 'granted') return;
+  const dueToday = subscriptions.filter(s => getDaysUntil(getNextRenewal(s.startDate)) === 0);
+  const dueTomorrow = subscriptions.filter(s => getDaysUntil(getNextRenewal(s.startDate)) === 1);
+
+  dueToday.forEach(s => {
+    new Notification(`${s.icon} ${s.name} 今天续费`, {
+      body: `${fmtMoney(s.fee, s.currency)} 将从账户扣除`,
+      icon: '/manifest.json',
+      tag: `due-today-${s.id}`
+    });
+  });
+
+  dueTomorrow.forEach(s => {
+    new Notification(`${s.icon} ${s.name} 明天续费`, {
+      body: `${fmtMoney(s.fee, s.currency)} 将在明天扣除，请确认账户余额`,
+      icon: '/manifest.json',
+      tag: `due-tomorrow-${s.id}`
+    });
+  });
+}
+
+// ── Toast ──────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Persistence ────────────────────────────────────────────
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
+}
+
+// ── Init ───────────────────────────────────────────────────
+function init() {
+  renderPresets();
+  renderColors();
+  render();
+  checkNotifPermission();
+
+  // Send notifications on open
+  if (Notification.permission === 'granted') {
+    sendDueNotifications();
+  }
+
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // Tabs
+  document.getElementById('tabBar').addEventListener('click', e => {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = btn.dataset.filter;
+    renderList();
+  });
+
+  // FAB
+  document.getElementById('fabBtn').addEventListener('click', openAdd);
+
+  // Modal close
+  document.getElementById('modalClose').addEventListener('click', () =>
+    document.getElementById('editModal').classList.remove('open'));
+  document.getElementById('detailClose').addEventListener('click', () =>
+    document.getElementById('detailModal').classList.remove('open'));
+
+  // Close on overlay click
+  document.getElementById('editModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('editModal'))
+      document.getElementById('editModal').classList.remove('open');
+  });
+  document.getElementById('detailModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('detailModal'))
+      document.getElementById('detailModal').classList.remove('open');
+  });
+
+  // Submit
+  document.getElementById('submitBtn').addEventListener('click', saveSub);
+  document.getElementById('deleteBtn').addEventListener('click', () => editingId && confirmDelete(editingId));
+
+  // Notification banner
+  document.getElementById('notifBanner').addEventListener('click', requestNotif);
+  document.getElementById('bannerClose').addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('notifBanner').classList.add('hidden');
+  });
+  document.getElementById('notifBtn').addEventListener('click', requestNotif);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
