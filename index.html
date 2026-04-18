@@ -29,15 +29,13 @@
       --safe-bottom: env(safe-area-inset-bottom);
     }
 
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; }
-    main, .tabs, .list { max-width: 100%; overflow-x: hidden; }
+    html { height: 100%; background: var(--bg); }
+    body { min-height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif; cursor: pointer; }
 
     /* ── Header ── */
     .header {
       position: sticky; top: 0; z-index: 100;
-      background: rgba(10,10,20,0.92);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: #0a0a14;
       padding: calc(var(--safe-top) + 16px) 20px 16px;
       border-bottom: 1px solid var(--border);
     }
@@ -532,7 +530,7 @@ function renderList() {
     const months = getSubscribedMonths(s.startDate);
 
     return `
-    <div class="sub-card" onclick="showDetail('${s.id}')">
+    <div class="sub-card" data-id="${s.id}">
       <div class="sub-card-inner">
         <div class="sub-icon" style="background:${s.color}22;border:1px solid ${s.color}44">${s.icon || s.name.charAt(0)}</div>
         <div class="sub-info">
@@ -574,9 +572,11 @@ function showDetail(id) {
     <div class="detail-row"><span class="detail-key">累计消费</span><span class="detail-val">${fmtMoney(totalPaid, s.currency)}</span></div>
   `;
   document.getElementById('detailActions').innerHTML = `
-    <button class="detail-actions btn-edit" onclick="editSub('${id}')">✏️ 编辑</button>
-    <button class="detail-actions btn-del" onclick="confirmDelete('${id}')">🗑️ 删除</button>
+    <button id="detailEditBtn" class="detail-actions btn-edit">✏️ 编辑</button>
+    <button id="detailDelBtn" class="detail-actions btn-del">🗑️ 删除</button>
   `;
+  document.getElementById('detailEditBtn').addEventListener('click', () => editSub(id));
+  document.getElementById('detailDelBtn').addEventListener('click', () => confirmDelete(id));
   openModal('detailModal');
 }
 
@@ -847,10 +847,18 @@ function init() {
     sendDueNotifications();
   }
 
-  // Service Worker
+  // 注销所有 Service Worker，避免旧版本缓存问题
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => reg.unregister());
+    });
   }
+
+  // 卡片点击（event delegation，iOS 更可靠）
+  document.getElementById('subList').addEventListener('click', e => {
+    const card = e.target.closest('.sub-card');
+    if (card && card.dataset.id) showDetail(card.dataset.id);
+  });
 
   // Tabs
   document.getElementById('tabBar').addEventListener('click', e => {
