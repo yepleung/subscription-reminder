@@ -54,20 +54,36 @@ function getMonths(startDate) {
 async function scheduleNotifications(subs) {
   await Notification.removeAllPending();
   let count = 0;
+  const now = new Date();
+
   for (const s of subs) {
-    const renewal = getNextRenewal(s.startDate);
-    const notifTime = new Date(renewal);
-    notifTime.setDate(notifTime.getDate() - 1);
-    notifTime.setHours(9, 0, 0, 0); // 到期前一天早上 9:00
-    if (notifTime > new Date()) {
-      const n = new Notification();
-      n.identifier = `sub_${s.id}_${renewal.getTime()}`;
-      n.title = `${s.icon || '📺'} ${s.name} 明天续费`;
-      n.body = `${s.fee} ${s.currency} 将在明天（${formatDate(renewal)}）扣除，请确认余额`;
-      n.scheduledDate = notifTime;
-      n.sound = 'default';
-      await n.schedule();
-      count++;
+    // 排定未来 12 个月的提醒（iOS 上限 64 个，多订阅也够用）
+    const start = new Date(s.startDate);
+    const billingDay = start.getDate();
+
+    for (let i = 0; i < 12; i++) {
+      // 计算第 i 个月的续费日
+      const renewal = getNextRenewal(s.startDate);
+      renewal.setMonth(renewal.getMonth() + i);
+      // 修正月份天数问题（例如 31 号 → 下月自动进位）
+      if (renewal.getDate() !== billingDay) {
+        renewal.setDate(0); // 退到上月最后一天
+      }
+
+      const notifTime = new Date(renewal);
+      notifTime.setDate(notifTime.getDate() - 1);
+      notifTime.setHours(9, 0, 0, 0); // 续费前一天早上 9:00
+
+      if (notifTime > now) {
+        const n = new Notification();
+        n.identifier = `sub_${s.id}_${renewal.getTime()}`;
+        n.title = `${s.icon || '📺'} ${s.name} 明天续费`;
+        n.body = `${s.fee} ${s.currency} 将在明天（${formatDate(renewal)}）扣除，请确认余额`;
+        n.scheduledDate = notifTime;
+        n.sound = 'default';
+        await n.schedule();
+        count++;
+      }
     }
   }
   return count;
